@@ -33,6 +33,18 @@ func TestRouter_AddRoute(t *testing.T) {
 			method: http.MethodPost,
 			path:   "/user/detail",
 		},
+		{
+			method: http.MethodGet,
+			path:   "/user/*",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/*",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/api/:smile",
+		},
 	}
 	var mockHandlerFunc HandlerFunc = func(ctx *Context) {
 
@@ -58,7 +70,22 @@ func TestRouter_AddRoute(t *testing.T) {
 							},
 						},
 						handlerFunc: mockHandlerFunc,
+						starChild: &node{
+							path:        "*",
+							handlerFunc: mockHandlerFunc,
+						},
 					},
+					"api": &node{
+						path: "api",
+						paramChild: &node{
+							path:        ":smile",
+							handlerFunc: mockHandlerFunc,
+						},
+					},
+				},
+				starChild: &node{
+					path:        "*",
+					handlerFunc: mockHandlerFunc,
 				},
 			},
 			http.MethodPost: &node{
@@ -102,6 +129,16 @@ func TestRouter_AddRoute(t *testing.T) {
 	assert.PanicsWithValue(t, "handlerFunc不能重复注册", func() {
 		r.AddRoute(http.MethodGet, "/age", mockHandlerFunc)
 	})
+	r = NewRouter()
+	r.AddRoute(http.MethodGet, "/*", mockHandlerFunc)
+	assert.PanicsWithValue(t, "通配符路由已注册，不允许注册参数路由", func() {
+		r.AddRoute(http.MethodGet, "/:abc", mockHandlerFunc)
+	})
+	r = NewRouter()
+	r.AddRoute(http.MethodGet, "/:abc", mockHandlerFunc)
+	assert.PanicsWithValue(t, "参数路由已注册，不允许注册通配符路由", func() {
+		r.AddRoute(http.MethodGet, "/*", mockHandlerFunc)
+	})
 }
 
 // TestRouter_FindRoute 查找路由单元测试
@@ -124,12 +161,20 @@ func TestRouter_FindRoute(t *testing.T) {
 			path:   "/user",
 		},
 		{
+			method: http.MethodGet,
+			path:   "/user/*",
+		},
+		{
 			method: http.MethodPost,
 			path:   "/user/detail",
 		},
 		{
 			method: http.MethodHead,
 			path:   "/",
+		},
+		{
+			method: http.MethodGet,
+			path:   "/user/detail/:username",
 		},
 	}
 	var mockHandlerFunc HandlerFunc = func(ctx *Context) {
@@ -141,11 +186,11 @@ func TestRouter_FindRoute(t *testing.T) {
 		r.AddRoute(route.method, route.path, mockHandlerFunc)
 	}
 	testCases := []struct {
-		name      string
-		method    string
-		path      string
-		found     bool
-		foundNode *node
+		name     string
+		method   string
+		path     string
+		found    bool
+		nodeInfo *NodeInfo
 	}{
 		//根节点测试用例
 		{
@@ -153,9 +198,11 @@ func TestRouter_FindRoute(t *testing.T) {
 			method: http.MethodHead,
 			path:   "/",
 			found:  true,
-			foundNode: &node{
-				path:        "/",
-				handlerFunc: mockHandlerFunc,
+			nodeInfo: &NodeInfo{
+				node: &node{
+					path:        "/",
+					handlerFunc: mockHandlerFunc,
+				},
 			},
 		},
 		//末尾节点
@@ -164,9 +211,15 @@ func TestRouter_FindRoute(t *testing.T) {
 			method: http.MethodGet,
 			path:   "/user/detail",
 			found:  true,
-			foundNode: &node{
-				path:        "detail",
-				handlerFunc: mockHandlerFunc,
+			nodeInfo: &NodeInfo{
+				node: &node{
+					path:        "detail",
+					handlerFunc: mockHandlerFunc,
+					paramChild: &node{
+						path:        ":username",
+						handlerFunc: mockHandlerFunc,
+					},
+				},
 			},
 		},
 		//中间节点
@@ -175,12 +228,22 @@ func TestRouter_FindRoute(t *testing.T) {
 			method: http.MethodGet,
 			path:   "/user",
 			found:  true,
-			foundNode: &node{
-				path:        "user",
-				handlerFunc: mockHandlerFunc,
-				children: map[string]*node{
-					"detail": &node{
-						path:        "detail",
+			nodeInfo: &NodeInfo{
+				node: &node{
+					path:        "user",
+					handlerFunc: mockHandlerFunc,
+					children: map[string]*node{
+						"detail": &node{
+							path:        "detail",
+							handlerFunc: mockHandlerFunc,
+							paramChild: &node{
+								path:        ":username",
+								handlerFunc: mockHandlerFunc,
+							},
+						},
+					},
+					starChild: &node{
+						path:        "*",
 						handlerFunc: mockHandlerFunc,
 					},
 				},
@@ -190,21 +253,65 @@ func TestRouter_FindRoute(t *testing.T) {
 		{
 			name:   "get user info",
 			method: http.MethodGet,
-			path:   "/user/info",
+			path:   "/users/info",
 			found:  false,
+		},
+		//通配符匹配
+		{
+			name:   "star user ",
+			method: http.MethodGet,
+			path:   "/user/xxx",
+			found:  true,
+			nodeInfo: &NodeInfo{
+				node: &node{
+					path:        "*",
+					handlerFunc: mockHandlerFunc,
+				},
+			},
+		},
+		//参数路由
+		{
+			name:   "get user detail :username",
+			method: http.MethodGet,
+			path:   "/user/detail/xxcheng",
+			found:  true,
+			nodeInfo: &NodeInfo{
+				node: &node{
+					path:        ":username",
+					handlerFunc: mockHandlerFunc,
+				},
+				pathParams: PathParams{
+					"username": "xxcheng",
+				},
+			},
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			foundNode, found := r.FindRoute(testCase.method, testCase.path)
+			nodeInfo, found := r.FindRoute(testCase.method, testCase.path)
 			assert.Equal(t, testCase.found, found)
 			if testCase.found {
-				_, ok := testCase.foundNode.equal(foundNode)
+				_, ok := testCase.nodeInfo.equal(nodeInfo)
 				assert.True(t, ok)
 			}
 		})
 	}
+}
+
+func (n *NodeInfo) equal(n2 *NodeInfo) (string, bool) {
+	msg, ok := n.node.equal(n2.node)
+	if !ok {
+		return msg, ok
+	}
+	if n.pathParams == nil && n2.pathParams == nil {
+		return "", true
+	}
+	msg2, ok2 := n.pathParams.equal(n2.pathParams)
+	if !ok2 {
+		return msg2, ok2
+	}
+	return "", true
 }
 
 // equal 路由对比
@@ -226,6 +333,18 @@ func (n *node) equal(n2 *node) (string, bool) {
 	//空节点
 	if n2 == nil {
 		return "空节点nil", false
+	}
+	if n2.starChild != nil {
+		msg, ok := n2.starChild.equal(n.starChild)
+		if !ok {
+			return msg, ok
+		}
+	}
+	if n2.paramChild != nil {
+		msg, ok := n2.paramChild.equal(n.paramChild)
+		if !ok {
+			return msg, ok
+		}
 	}
 	//路径不匹配
 	if n.path != n2.path {
@@ -250,6 +369,20 @@ func (n *node) equal(n2 *node) (string, bool) {
 		}
 		if msg, ok := c.equal(c2); !ok {
 			return msg, false
+		}
+	}
+	return "", true
+}
+
+func (p PathParams) equal(p2 PathParams) (string, bool) {
+	if p2 == nil {
+		return "对比数据为空", false
+	}
+	for k, v := range p {
+		if v2, ok := p2[k]; !ok {
+			return fmt.Sprintf("参数对比为空，%s!=%s", v, v2), false
+		} else if v != v2 {
+			return fmt.Sprintf("参数对比不正确，%s!=%s", v, v2), false
 		}
 	}
 	return "", true

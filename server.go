@@ -40,7 +40,14 @@ func (h *HTTPServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 // serve 内部负责业务逻辑调度的
 // 根据路由查找对应的handlerFunc
 func (h *HTTPServer) serve(ctx *Context) {
-
+	nodeInfo, ok := h.FindRoute(ctx.Req.Method, ctx.Req.URL.Path)
+	if !ok {
+		ctx.Resp.WriteHeader(404)
+		ctx.Resp.Write([]byte("not found,path:" + ctx.Req.URL.Path))
+		return
+	}
+	ctx.PathParams = nodeInfo.pathParams
+	nodeInfo.node.handlerFunc(ctx)
 }
 
 // 根据具体HTTP方法，提供批量的请求方法
@@ -74,6 +81,10 @@ func (h *HTTPServer) TRACE(path string, handlerFunc HandlerFunc) {
 }
 
 func (h *HTTPServer) Start(addr string) error {
+	if h.router == nil {
+		panic("Router未初始化...")
+	}
+
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
