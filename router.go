@@ -16,6 +16,7 @@ type node struct {
 	//参数路由
 	paramChild  *node
 	handlerFunc HandlerFunc
+	route       string
 }
 
 func NewRouter() *router {
@@ -54,6 +55,7 @@ func (r *router) AddRoute(method, path string, handlerFunc HandlerFunc) {
 			panic("handlerFunc不能重复注册")
 		}
 		methodTree.handlerFunc = handlerFunc
+		methodTree.route = "/"
 		//必须使用return退出，strings.Split会分割一个空的""出来
 		return
 	}
@@ -79,6 +81,7 @@ func (r *router) AddRoute(method, path string, handlerFunc HandlerFunc) {
 	}
 	//注册handlerFunc
 	root.handlerFunc = handlerFunc
+	root.route = path
 }
 
 func (r *router) FindRoute(method, path string) (*NodeInfo, bool) {

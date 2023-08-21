@@ -8,10 +8,14 @@ import (
 
 type PathParams map[string]string
 type Context struct {
-	Req         *http.Request
-	Resp        http.ResponseWriter ``
-	PathParams  PathParams
-	QueryParams map[string][]string
+	Req          *http.Request
+	Resp         http.ResponseWriter ``
+	PathParams   PathParams
+	QueryParams  map[string][]string
+	MatchedRoute string
+
+	RespData       []byte
+	RespStatusCode int
 }
 
 func (c *Context) BindJSON(jsonModel any) error {
@@ -60,7 +64,9 @@ func (c *Context) RespJSON(statusCode int, jsonData any) error {
 	if err != nil {
 		return err
 	}
-	c.Resp.WriteHeader(statusCode)
-	c.Resp.Write(res)
+	c.RespData = res
+	c.RespStatusCode = statusCode
+	//c.Resp.WriteHeader(statusCode)
+	//c.Resp.Write(res)
 	return nil
 }
