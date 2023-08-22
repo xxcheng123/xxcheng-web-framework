@@ -16,6 +16,8 @@ type Context struct {
 
 	RespData       []byte
 	RespStatusCode int
+
+	tplEngine TemplateEngine
 }
 
 func (c *Context) BindJSON(jsonModel any) error {
@@ -69,4 +71,14 @@ func (c *Context) RespJSON(statusCode int, jsonData any) error {
 	//c.Resp.WriteHeader(statusCode)
 	//c.Resp.Write(res)
 	return nil
+}
+
+func (c *Context) Render(tpl string, data any) error {
+	var err error
+	c.RespData, err = c.tplEngine.Render(c.Req.Context(), tpl, data)
+	c.RespStatusCode = 200
+	if err != nil {
+		c.RespStatusCode = 500
+	}
+	return err
 }

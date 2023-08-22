@@ -21,6 +21,7 @@ type Server interface {
 type HTTPServer struct {
 	*router
 	middlewares []MiddleWare
+	tplEngine   TemplateEngine
 }
 
 // HTTPServerOption 给HTTPServer添加额外的功能
@@ -47,12 +48,18 @@ func ServerWithMiddleWare(mdls ...MiddleWare) HTTPServerOption {
 		}
 	}
 }
+func ServerWithTemplateEngine(engine TemplateEngine) HTTPServerOption {
+	return func(server *HTTPServer) {
+		server.tplEngine = engine
+	}
+}
 
 // ServeHTTP 业务逻辑处理入口
 func (h *HTTPServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	ctx := &Context{
-		Req:  req,
-		Resp: resp,
+		Req:       req,
+		Resp:      resp,
+		tplEngine: h.tplEngine,
 	}
 	root := h.serve
 	// ms[0]->ms[1]->...->ms[n-1]->h.serve
