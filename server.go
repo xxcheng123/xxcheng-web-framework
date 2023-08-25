@@ -60,6 +60,7 @@ func (h *HTTPServer) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 		Req:       req,
 		Resp:      resp,
 		tplEngine: h.tplEngine,
+		ctxData:   map[string]any{},
 	}
 	root := h.serve
 	// ms[0]->ms[1]->...->ms[n-1]->h.serve

@@ -14,6 +14,8 @@ type Context struct {
 	QueryParams  map[string][]string
 	MatchedRoute string
 
+	ctxData map[string]any
+
 	RespData       []byte
 	RespStatusCode int
 
@@ -81,4 +83,12 @@ func (c *Context) Render(tpl string, data any) error {
 		c.RespStatusCode = 500
 	}
 	return err
+}
+
+func (c *Context) Get(key string) (any, bool) {
+	d, ok := c.ctxData[key]
+	return d, ok
+}
+func (c *Context) Set(key string, val any) {
+	c.ctxData[key] = val
 }
